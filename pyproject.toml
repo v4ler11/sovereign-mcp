@@ -1,5 +1,5 @@
 [project]
-name = "tmp_python_service"
+name = "personal_mcps"
 version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
@@ -8,29 +8,29 @@ dependencies = []
 
 [project.optional-dependencies]
 core = [
-    "fastapi>=0.121.3",
+    "fastapi>=0.128.0",
     "pydantic>=2.12.4",
-    "scalar-fastapi>=1.4.4",
     "termcolor>=3.2.0",
-    "uvicorn>=0.38.0",
+    "uvicorn>=0.40.0",
     "uvloop>=0.22.1",
 ]
 
 [dependency-groups]
 dev = [
-    "tmp_python_service[core]",
-    "ruff>=0.14.6",
-    "pytest>=9.0.1",
-    "pyright>=1.1.407",
+    "personal_mcps[core]",
+    "pytest>=9.0.2",
+    "ty>=0.0.10",
 ]
 
 [tool.uv.workspace]
 members = [
     "src/core",
+    "src/mcp",
 ]
 
 [tool.uv.sources]
 core = { workspace = true }
+mcp = { workspace = true }
 
 [tool.uv]
 package = true

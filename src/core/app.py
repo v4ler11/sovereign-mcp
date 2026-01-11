@@ -1,9 +1,7 @@
 from fastapi import FastAPI
 
-from core.routers.router_base import BaseRouter
-
-
-__all__ = ["App"]
+from mcp.router import MCPRouter
+from core.servers.finance import create_server as create_finance_server
 
 
 class App(FastAPI):
@@ -20,8 +18,6 @@ class App(FastAPI):
         return cls(
             docs_url=None,
             redoc_url=None,
-            openapi_url="/v1/openapi.json",
-            openapi_tags=[],
         )
 
     async def _startup_events(self):
@@ -33,5 +29,7 @@ class App(FastAPI):
 
     def _routers(self):
         return [
-            BaseRouter(),
+            MCPRouter(
+                server=create_finance_server()
+            )
         ]

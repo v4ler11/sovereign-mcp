@@ -1,7 +1,7 @@
 import asyncio
 
-import uvloop
 import uvicorn
+import uvloop
 
 from core.app import App
 from core.globals import LOGS_DIR, PORT
@@ -12,7 +12,7 @@ def main():
     init_logger(LOGS_DIR)
     info("Logger initialized")
 
-    app = App.new()
+    app = App()
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
@@ -20,10 +20,18 @@ def main():
         app,
         host="0.0.0.0",
         port=PORT,
+        loop="uvloop",
         timeout_keep_alive=600,
-        log_config=None
+        log_config=None,
+        access_log=False,
+        lifespan="on",
     )
+
     server = uvicorn.Server(config)
-    server.run()
+
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        info("KeyboardInterrupt handled")
 
     exit(0)

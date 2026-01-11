@@ -1,5 +1,4 @@
-## Template Python Service
-###  An Easy way to create a Python Service
+## Personal MCPs
 
 # Usage
 
@@ -73,7 +72,7 @@ Note: GH actions will automatically create and publish an image based on the tag
 
 #### Pyright -- Static Type Checker
 ```sh
-uv run pyright
+uv run ty check
 ```
 
 #### Testing

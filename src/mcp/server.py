@@ -137,7 +137,10 @@ class MCPServer:
         )
 
 
-    def _handle_resources_list(self, request: JsonRpcRequest) -> ResourcesResponse:
+    def _handle_resources_list(self, request: JsonRpcRequest) -> ResourcesResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         return ResourcesResponse(
             id=request.id,
             result=ResourcesListResponseResult(
@@ -146,6 +149,9 @@ class MCPServer:
         )
 
     def _handle_resources_read(self, request: JsonRpcRequest) -> ResourcesResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         params = request.params
         if not isinstance(params, dict):
             return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Params must be a dictionary")
@@ -173,7 +179,10 @@ class MCPServer:
             )
         )
 
-    def _handle_resources_templates_list(self, request: JsonRpcRequest) -> ResourcesResponse:
+    def _handle_resources_templates_list(self, request: JsonRpcRequest) -> ResourcesResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         return ResourcesResponse(
             id=request.id,
             result=ResourcesTemplatesListResult(
@@ -181,7 +190,10 @@ class MCPServer:
             )
         )
 
-    def _handle_prompts_list(self, request: JsonRpcRequest) -> PromptsResponse:
+    def _handle_prompts_list(self, request: JsonRpcRequest) -> PromptsResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         return PromptsResponse(
             id=request.id,
             result=PromptsListResponseResult(
@@ -192,6 +204,9 @@ class MCPServer:
     async def _handle_prompts_get(
             self, request: JsonRpcRequest
     ) -> PromptsResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         params = request.params
         if not isinstance(params, dict):
             return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Params must be a dictionary")
@@ -219,7 +234,10 @@ class MCPServer:
             result=prompt_result
         )
 
-    def _handle_tools_list(self, request: JsonRpcRequest) -> ToolsResponse:
+    def _handle_tools_list(self, request: JsonRpcRequest) -> ToolsResponse | JsonRpcError:
+        if request.id is None:
+            return JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+
         return ToolsResponse(
             id=request.id,
             result=ToolsListResponseResult(
@@ -230,6 +248,9 @@ class MCPServer:
     async def _handle_tool_call(
             self, request: JsonRpcRequest
     ) -> AsyncIterator[ProgressNotification | ToolsResponse | JsonRpcError]:
+        if request.id is None:
+            yield JsonRpcError(id=request.id, code=INVALID_PARAMS, message="Request ID is missing")
+            return
 
         params = request.params
         if not isinstance(params, dict):

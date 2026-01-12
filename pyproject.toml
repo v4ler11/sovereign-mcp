@@ -10,7 +10,7 @@ dependencies = [
     "uvicorn>=0.34.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ty>=0.0.10",
 ]
@@ -21,3 +21,4 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp"]
+

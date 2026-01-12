@@ -34,21 +34,24 @@ sovereign-mcp is a library (Dev Kit), not a standalone application. You must mou
 uv add git+https://github.com/v4ler11/sovereign-mcp.git
 ```
 
-### 1. Define Capabilities
-
-Capabilities are defined as standalone objects. Logic is isolated from definition.
+### 2. Implement tool, prompt, MCP Server, start application
 
 ```python
+import uvicorn
 import asyncio
 from typing import AsyncIterator, Dict, Any
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from mcp.schemas.tools import Tool, ToolResult, ToolResultText, ToolDefinition, ToolProgress
 from mcp.schemas.prompts import Prompt, PromptDefinition, PromptsGetResult, PromptMessage, PromptMessageContentText, PromptArgument
+from mcp.server import MCPServer
+from mcp.router import MCPRouter
 
 
-# --- Tool: Standard (Sync/Async) ---
 async def calculate_sum(args: dict) -> ToolResult:
-    result = args['a'] + args['b']
-    return ToolResult(content=[ToolResultText(text=str(result))])
+    return ToolResult(content=[ToolResultText(text=str(args['a'] + args['b']))])
+
 
 tool_calc = Tool(
     func=calculate_sum,
@@ -56,20 +59,19 @@ tool_calc = Tool(
         name="add",
         description="Adds two integers.",
         inputSchema={
-            "type": "object",
-            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
             "required": ["a", "b"]
         }
     )
 )
 
-# --- Tool: Streaming (Progress) ---
+
 async def long_process(args: dict) -> AsyncIterator[ToolResult | ToolProgress]:
     for i in range(5):
         yield ToolProgress(progress=i, total=5, message="Processing...")
         await asyncio.sleep(0.1)
-    
     yield ToolResult(content=[ToolResultText(text="Done")])
+
 
 tool_stream = Tool(
     func=long_process,
@@ -80,17 +82,16 @@ tool_stream = Tool(
     )
 )
 
-# --- Prompt ---
+
 async def make_system_prompt(args: Dict[str, Any]) -> PromptsGetResult:
     return PromptsGetResult(
         description="System Instructions",
-        messages=[
-            PromptMessage(
-                role="user",
-                content=PromptMessageContentText(text=f"Act as a {args.get('role', 'assistant')}.")
-            )
-        ]
+        messages=[PromptMessage(
+            role="user",
+            content=PromptMessageContentText(text=f"Act as a {args.get('role', 'assistant')}.")
+        )]
     )
+
 
 prompt_sys = Prompt(
     func=make_system_prompt,
@@ -100,37 +101,46 @@ prompt_sys = Prompt(
         arguments=[PromptArgument(name="role", required=False)]
     )
 )
+
+
+class App(FastAPI):
+    def __init__(self, mcp_server: MCPServer, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mcp_server = mcp_server
+        self.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+        self.add_event_handler("startup", self._startup_events)
+
+    @classmethod
+    def new(cls) -> "App":
+        return cls(mcp_server=MCPServer("sovereign-node-01"))
+
+    async def _startup_events(self):
+        self.mcp_server.tools.add([tool_calc, tool_stream])
+        self.mcp_server.prompts.add([prompt_sys])
+
+        for router in self._routers():
+            self.include_router(router)
+
+    def _routers(self):
+        return [MCPRouter(self.mcp_server)]
+
+
+def main():
+    uvicorn.run(App.new(), host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-### 2. Server Instantiation
+### 3. Test 
 
-Compose the server by injecting capabilities
+Test using npx @modelcontextprotocol/inspector
 
-```python
-from mcp.server import MCPServer
+Choose Streamable HTTP Transport Type & Via Proxy Connection Type
 
-def create_server() -> MCPServer:
-    server = MCPServer("node-01")
-    
-    # Explicit registration
-    server.tools.add([tool_calc, tool_stream])
-    server.prompts.add([prompt_sys])
-
-    return server
-```
-
-### 3. Entry Point (FastAPI)
-
-Mount the MCPRouter.
-
-```python
-from fastapi import FastAPI
-from mcp.router import MCPRouter
-
-app = FastAPI()
-server = create_server()
-
-app.include_router(MCPRouter(server=server))
+```sh
+npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 ```
 
 ## Protocol Compliance

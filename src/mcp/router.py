@@ -9,13 +9,10 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import StreamingResponse
 from starlette.responses import JSONResponse
 
-from core.logger import info, error
 from mcp.schemas.other import JsonRpcError, PARSE_ERROR, INVALID_REQUEST, JsonRpcRequest, INTERNAL_ERROR
 from mcp.server import MCPServer
 from mcp.session import Session
 
-# todo: implement cancellation
-# https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation
 
 class MCPRouter(APIRouter):
     HEADER_SESSION_ID_KEY: str = "Mcp-Session-Id"
@@ -120,7 +117,6 @@ class MCPRouter(APIRouter):
                     session.enqueue_message(result.model_dump(exclude_none=True))
 
         except Exception as e:
-            error(f"Background processing error: {e}")
             err_resp = JsonRpcError(
                 id=rpc_req.id,
                 code=INTERNAL_ERROR,
@@ -156,7 +152,6 @@ class MCPRouter(APIRouter):
         session = self.sessions.pop(session_id, None)
         if session:
             session.terminate()
-            info(f"Session Terminated: {session_id}")
             return Response(status_code=200)
 
         return Response(status_code=404)
@@ -185,7 +180,7 @@ class MCPRouter(APIRouter):
             pass
 
         except Exception as e:
-            error(f"SSE Stream Error: {e}")
+            pass
 
     def __del__(self):
         if hasattr(self, '_cleanup_task'):
@@ -200,7 +195,6 @@ class MCPRouter(APIRouter):
                 for session_id in list(self.sessions.keys()):
                     session = self.sessions[session_id]
                     if session.last_accessed < cutoff:
-                        info(f"removing stale session: {session_id}")
                         session.terminate()
                         self.sessions.pop(session_id, None)
 
@@ -208,4 +202,4 @@ class MCPRouter(APIRouter):
                 break
 
             except Exception as e:
-                error(f"Session cleanup error: {e}")
+                pass

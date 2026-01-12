@@ -3,7 +3,6 @@ import inspect
 from typing import AsyncIterator, List, Callable, Awaitable, Any
 from collections.abc import AsyncIterator as AsyncIteratorAbc
 
-from core.logger import error
 from mcp.lifecycle_manager import LifecycleManager
 from mcp.schemas.other import (
     JsonRpcRequest, JsonRpcResponse, JsonRpcError, METHOD_NOT_FOUND, INTERNAL_ERROR,
@@ -318,7 +317,6 @@ class MCPServer:
                         break
 
                     else:
-                        error(f"Unknown tool output type: {type(tool_output)}")
                         pass
 
                 except StopAsyncIteration:

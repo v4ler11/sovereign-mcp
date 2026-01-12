@@ -1,92 +1,153 @@
-## Personal MCPs
+# sovereign-mcp
 
-# Usage
+**sovereign-mcp** is a zero-dependency, strict implementation of the Model Context Protocol (MCP) server specification (Version `2025-11-25`).
 
-1. Clone the repository
-```shell
-git clone https://app.git.valerii.cc/valerii/tmp-python-service.git
-cd tmp-python-service
-```
+It exists because the reference Python implementation (`FastMCP`) relies on opaque "magic" decorators and implicit global state. **sovereign-mcp** is architected for transparency and total control. It enforces strict separation of concerns, explicit state management, and direct transport adherence.
 
-## Baremetal
+Instead of vague dictionaries, it utilizes **Pydantic** for rigid schema validation and type safety, ensuring every protocol message is formally verified before transmission.
 
-2. Install [uv](https://github.com/astral-sh/uv)
+## Core Philosophy
+
+* **No Magic:** Rejection of implicit global state. Everything is explicitly instantiated and injected.
+* **Transport Agnostic:** Logic is decoupled from the HTTP layer.
+* **Deterministic Lifecycle:** Tools and Prompts are managed via strict `LifecycleManager` instances.
+* **Type Safety:** Heavy use of Pydantic models for request/response validation, eliminating "stringly typed" errors.
+
+## Technical Specifications
+
+* **Protocol:** `2025-11-25`
+* **Transport:** StreamableHTTP (Server-Sent Events for downstream updates + JSON-RPC 2.0 via HTTP POST for upstream commands).
+* **Concurrency:** Built on the native `asyncio` event loop. Fully non-blocking I/O with support for both atomic `awaitable` coroutines and `AsyncIterator` generators for real-time progress streaming.
+
+## Constraints
+
+* **Authentication:** Not implemented. Security and auth headers are delegated to the host application (FastAPI) or infrastructure layer (e.g., Nginx, API Gateway).
+* **JSON-RPC Batching:** Unsupported. All requests must be sent sequentially.
+
+## Usage
+
+sovereign-mcp is a library (Dev Kit), not a standalone application. You must mount it within a FastAPI host.
+
+### 1. Install using uv
+
 ```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv --version
+uv add git+https://github.com/v4ler11/sovereign-mcp.git
 ```
 
-3. Install package & deps
-```sh
-uv venv
-uv sync --extra core
+### 1. Define Capabilities
+
+Capabilities are defined as standalone objects. Logic is isolated from definition.
+
+```python
+import asyncio
+from typing import AsyncIterator, Dict, Any
+from mcp.schemas.tools import Tool, ToolResult, ToolResultText, ToolDefinition, ToolProgress
+from mcp.schemas.prompts import Prompt, PromptDefinition, PromptsGetResult, PromptMessage, PromptMessageContentText, PromptArgument
+
+
+# --- Tool: Standard (Sync/Async) ---
+async def calculate_sum(args: dict) -> ToolResult:
+    result = args['a'] + args['b']
+    return ToolResult(content=[ToolResultText(text=str(result))])
+
+tool_calc = Tool(
+    func=calculate_sum,
+    definition=ToolDefinition(
+        name="add",
+        description="Adds two integers.",
+        inputSchema={
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"]
+        }
+    )
+)
+
+# --- Tool: Streaming (Progress) ---
+async def long_process(args: dict) -> AsyncIterator[ToolResult | ToolProgress]:
+    for i in range(5):
+        yield ToolProgress(progress=i, total=5, message="Processing...")
+        await asyncio.sleep(0.1)
+    
+    yield ToolResult(content=[ToolResultText(text="Done")])
+
+tool_stream = Tool(
+    func=long_process,
+    definition=ToolDefinition(
+        name="process_stream",
+        description="Demonstrates progress reporting.",
+        inputSchema={"type": "object", "properties": {}, "required": []}
+    )
+)
+
+# --- Prompt ---
+async def make_system_prompt(args: Dict[str, Any]) -> PromptsGetResult:
+    return PromptsGetResult(
+        description="System Instructions",
+        messages=[
+            PromptMessage(
+                role="user",
+                content=PromptMessageContentText(text=f"Act as a {args.get('role', 'assistant')}.")
+            )
+        ]
+    )
+
+prompt_sys = Prompt(
+    func=make_system_prompt,
+    definition=PromptDefinition(
+        name="system_persona",
+        description="Generates dynamic system prompts.",
+        arguments=[PromptArgument(name="role", required=False)]
+    )
+)
 ```
 
-4. Run the Service
-```sh
-uv run core
+### 2. Server Instantiation
+
+Compose the server by injecting capabilities
+
+```python
+from mcp.server import MCPServer
+
+def create_server() -> MCPServer:
+    server = MCPServer("node-01")
+    
+    # Explicit registration
+    server.tools.add([tool_calc, tool_stream])
+    server.prompts.add([prompt_sys])
+
+    return server
 ```
 
-## Docker
+### 3. Entry Point (FastAPI)
 
-2. Ensure you have docker, docker compose installed
-```sh
-docker --version && docker compose version
-```
-Help: consult [How to install docker, docker compose, ctk](assets/docs/docker-docker-compose-ctl.md)
+Mount the MCPRouter.
 
-3. Build an Image and start container
-```sh
-docker compose up -d
-```
+```python
+from fastapi import FastAPI
+from mcp.router import MCPRouter
 
-# Development
+app = FastAPI()
+server = create_server()
 
-1. Install the package as in baremetal section
-2. Switch to development profile
-```sh
-uv sync --dev
+app.include_router(MCPRouter(server=server))
 ```
 
-### Adding/ Removing packages
-```sh
-uv add requests --optional core
-uv remove request --optional core
-```
-or adding to a group e.g., development
-```sh
-uv add requests --dev
-uv remove requests --dev
-```
+## Protocol Compliance
 
-### Upgrading a version
-1. Bump up version in `pyproject.toml`
-2. Execute
-```sh
-git tag v0.1.4
-git push origin v0.1.4
-```
-Note: GH actions will automatically create and publish an image based on the tag
+| Feature             | Status | Notes                                                                        |
+|:--------------------|:------:|:-----------------------------------------------------------------------------|
+| **JSON-RPC 2.0**    |   ✓    | Pydantic validation.                                                         |
+| **StreamableHTTP**  |   ✓    | Single endpoint. POST sends (accepts SSE/JSON)                               |
+| **Tools**           |   ✓    | Async support.                                                               |
+| **Prompts**         |   ✓    | Dynamic generation.                                                          |
+| **Resources**       |   ✓    | URI context. No pagination.                                                  |
+| **ResourceSchemas** |   ✓    | RFC 6570 templates.                                                          |
+| **Progress**        |   ✓    | Tool-driven reporting.                                                       |
+| **Batching**        |   X    | Unsupported.                                                                 |
+| **Auth**            |   X    | Host-delegated.                                                              |
 
-### Development tools
 
-#### Pyright -- Static Type Checker
-```sh
-uv run ty check
-```
+## License 
 
-#### Testing
-Run all the tests
-```sh
-uv run pytest
-```
-
-Show all testing markers 
-```sh
-uv run pytest --markers | head -1
-```
-
-Run tests assigned to a marker
-```sh
-uv run pytest -m "marker"
-```
+MIT

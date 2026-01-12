@@ -37,9 +37,12 @@ uv add git+https://github.com/v4ler11/sovereign-mcp.git
 ### 2. Implement tool, prompt, MCP Server, start application
 
 ```python
-import uvicorn
 import asyncio
+
 from typing import AsyncIterator, Dict, Any
+
+import uvicorn
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -83,7 +86,7 @@ tool_stream = Tool(
 )
 
 
-async def make_system_prompt(args: Dict[str, Any]) -> PromptsGetResult:
+async def make_system_prompt(args: dict) -> PromptsGetResult:
     return PromptsGetResult(
         description="System Instructions",
         messages=[PromptMessage(
